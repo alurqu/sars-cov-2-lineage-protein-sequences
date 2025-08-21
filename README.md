@@ -55,6 +55,19 @@ To get the Spike amino acid sequence for JN.1 with an additional nucleotide inse
 python3 find_protein_sequence.py S JN.1 Ins:21565:AAA
 ```
 
+The protein can also be specified as a nucleotide range or even just a starting nucleotide. If just a starting
+nucleotide is specified, translation will procede until the first stop codon.
+
+To get the translated ORF8 amino acid sequence for EG.5
+```bash
+python3 find_protein_sequence.py 27894 EG.5
+```
+
+To get a the amino acid sequence for custom frame from 27756 to 27887 (ORF7b) for P.1:
+```bash
+python3 find_protein_sequence.py 27756-27788 P.1
+```
+
 To get the list of all proteins supported, including some whose expression is controversial,
 ```bash
 python3 find_protein_sequence.py

@@ -8,6 +8,7 @@ domains={}
 del_mut_pattern=re.compile("(Del):(\\d+)(?:-(\\d+))?")
 ins_mut_pattern=re.compile("(Ins):(\\d+):([ACGT]+)")
 nuc_mut_pattern=re.compile("Nuc:(\\d+)([ACGT])")
+range_pattern=re.compile("(\\d+)(?:-(\\d+))?")
 
 def load_codon_map():
   f=open("data/dna_codon.csv","r")
@@ -48,10 +49,21 @@ def get_mutations_path(lineage):
   path=re.sub(r"[.]",r"/",path0)
   return f"../sars-cov-2-lineage-dominant-mutations{path}/{lineage}-muts.txt"
 
-def convert_to_protein(rna):
+def convert_to_protein(rna,defined_end):
   result=""
-  for p in range(0,len(rna),3):
-    result="%s%s"%(result,codonmap[rna[p:p+3]])
+  p=0
+  stop=False
+  len_rna=len(rna)
+  while (p<len_rna) and not stop:
+    codon=rna[p:p+3]
+    if codon in codonmap:
+       next_residue=codonmap[rna[p:p+3]]
+       result="%s%s"%(result,next_residue)
+       if (next_residue=='*') and (not defined_end):
+          stop=True
+    else:
+       print(f"Encountered unexpected codon {codon}. Ending translation early.")
+    p=p+3
   return result
 
 def load_lineage_nuc_mutations(lineage,positions,frame,additional_muts):
@@ -111,19 +123,14 @@ def load_lineage_nuc_mutations(lineage,positions,frame,additional_muts):
      if (p<output_start):
        output_start=output_start+delta
 
-  print(convert_to_protein(lineage_rna[output_start:output_end+1]))
+  defined_end=(output_end>0)
+  if defined_end:
+    rna_snippet=lineage_rna[output_start:output_end+1]
+  else:
+    rna_snippet=lineage_rna[output_start:]
+  return convert_to_protein(rna_snippet,defined_end)
 
-load_reference_strain_rna()
-load_codon_map()
-load_domains()
-
-n_args=len(sys.argv)
-if n_args>2:
-   additional_muts=[]
-   if n_args>3:
-      additional_muts=sys.argv[3:]
-   load_lineage_nuc_mutations(sys.argv[2],domains[sys.argv[1]],sys.argv[1],additional_muts)
-else:
+def print_usage():
    usage="""
 Usage:
 
@@ -136,10 +143,43 @@ Available protein specifications are:
    print(usage)
    for p in proteins:
       print(f"   {p}")
+   after_proteins="""
+Or in place of the protein name specify a nucleotide range such as 21563-21572
+or just a starting nucleotide such as 27894. If only a start nucleotide is
+specified, translation will run until the first stop codon is encountered.
+"""
+   print(after_proteins)
    warranty="""
-
 Use this program at your own risk as it has no warranty or guarantee of correctness.
    """
    print(warranty)
 
+load_reference_strain_rna()
+load_codon_map()
+load_domains()
+
+n_args=len(sys.argv)
+if n_args>2:
+   additional_muts=[]
+   if n_args>3:
+      additional_muts=sys.argv[3:]
+   protein=sys.argv[1]
+   range_match=range_pattern.match(protein)
+   domain=None
+   if protein in domains:
+      domain=domains[protein]
+   elif (range_match):
+      if (range_match.group(2)):
+         domain=(int(range_match.group(1)),int(range_match.group(2)))
+      else:
+         domain=(int(range_match.group(1)),-1) 
+   if (domain):
+      result=load_lineage_nuc_mutations(sys.argv[2],domain,sys.argv[1],additional_muts)
+      print(result)
+   else:
+      print(f"Protein {protein} not recognized")
+      print("")
+      print_usage()
+else:
+   print_usage()
 
