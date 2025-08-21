@@ -27,7 +27,7 @@ Usage
 =====
 To get the protein amino acid sequence for a protein from a SARS-CoV-2 lineage
 ```bash
-python3 find_protein_sequence.py [protein] [lineage]
+python3 find_protein_sequence.py [protein] [lineage] [additional nucleotide mutations]
 ```
 
 For example, to get the Spike amino acid sequence for NB.1.8.1 
@@ -38,6 +38,21 @@ python3 find_protein_sequence.py S NB.1.8.1
 or to get the Envelope amino acid sequence for BA.2
 ```bash
 python3 find_protein_sequence.py E BA.2
+```
+
+To get the Spike amino acid sequence for XFG with an additional nucleotide mutation to C at 21567:
+```bash
+python3 find_protein_sequence.py S XFG Nuc:21566C
+```
+
+To get the Spike amino acid sequence for XBB.1.5 with an additional nucleotide deletion at 21569-21571:
+```bash
+python3 find_protein_sequence.py S XBB.1.5 Del:21569-21571
+```
+
+To get the Spike amino acid sequence for JN.1 with an additional nucleotide insertion of AAA just after 21565:
+```bash
+python3 find_protein_sequence.py S JN.1 Ins:21565:AAA
 ```
 
 To get the list of all proteins supported, including some whose expression is controversial,

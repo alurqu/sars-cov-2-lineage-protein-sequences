@@ -54,7 +54,7 @@ def convert_to_protein(rna):
     result="%s%s"%(result,codonmap[rna[p:p+3]])
   return result
 
-def load_lineage_nuc_mutations(lineage,positions,frame):
+def load_lineage_nuc_mutations(lineage,positions,frame,additional_muts):
   mutations_path=get_mutations_path(lineage)
   f=open(mutations_path,"r")
   indels={}
@@ -65,16 +65,21 @@ def load_lineage_nuc_mutations(lineage,positions,frame):
     # For frames that span the ribosome slip from ORF1a to ORF1b,
     # add a deletion for the slip effect
     indels[13466]=('Del',13466,13467)
+  muts=[]
   for l in f.readlines():
-    del_mut_match=del_mut_pattern.match(l[:-1])
+    muts.append(l[:-1])
+  for m in additional_muts:
+    muts.append(m)
+  for mut in muts:
+    del_mut_match=del_mut_pattern.match(mut)
     if del_mut_match:
       start_pos=int(del_mut_match.group(2))
       indels[start_pos]=(del_mut_match.group(1),del_mut_match.group(2),del_mut_match.group(3))
-    ins_mut_match=ins_mut_pattern.match(l[:-1])
+    ins_mut_match=ins_mut_pattern.match(mut)
     if ins_mut_match:
       start_pos=int(ins_mut_match.group(2))
       indels[start_pos]=(ins_mut_match.group(1),ins_mut_match.group(2),ins_mut_match.group(3))
-    nuc_mut_match=nuc_mut_pattern.match(l[:-1])
+    nuc_mut_match=nuc_mut_pattern.match(mut)
     if nuc_mut_match:
       mutPos=int(nuc_mut_match.group(1))
       lineage_rna=lineage_rna[:mutPos-1]+nuc_mut_match.group(2)+lineage_rna[mutPos:]
@@ -103,7 +108,7 @@ def load_lineage_nuc_mutations(lineage,positions,frame):
        lineage_rna=lineage_rna[:ins_pos]+ins_seq+lineage_rna[ins_pos:]
      if (p<=output_end):
        output_end=output_end+delta
-     if (p<=output_start):
+     if (p<output_start):
        output_start=output_start+delta
 
   print(convert_to_protein(lineage_rna[output_start:output_end+1]))
@@ -112,9 +117,12 @@ load_reference_strain_rna()
 load_codon_map()
 load_domains()
 
-
-if len(sys.argv)>2:
-   load_lineage_nuc_mutations(sys.argv[2],domains[sys.argv[1]],sys.argv[1])
+n_args=len(sys.argv)
+if n_args>2:
+   additional_muts=[]
+   if n_args>3:
+      additional_muts=sys.argv[3:]
+   load_lineage_nuc_mutations(sys.argv[2],domains[sys.argv[1]],sys.argv[1],additional_muts)
 else:
    usage="""
 Usage:
