@@ -42,6 +42,7 @@ def load_domains():
   load_domain_file("domains.csv")
   load_domain_file("gisaid_domains.csv")
   load_domain_file("non_nextclade_domains.csv")
+  load_domain_file("non_nextclade_domains_aligned.csv")
   domains['ORF1ab']=(domains['ORF1a'][0],domains['ORF1b'][1])
 
 def get_mutations_path(lineage):
