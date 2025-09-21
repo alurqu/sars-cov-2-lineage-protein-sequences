@@ -6,11 +6,13 @@ import sys
 reference_rna=""
 codonmap={}
 domains={}
+trs_s={}
 
 del_mut_pattern=re.compile("(Del):(\\d+)(?:-(\\d+))?")
 ins_mut_pattern=re.compile("(Ins):(\\d+):([ACGT]+)")
 nuc_mut_pattern=re.compile("Nuc:(\\d+)([ACGT])")
 range_pattern=re.compile("(\\d+)(?:-(\\d+))?")
+nucleotide_pattern=re.compile("[ACGT]+")
 
 def load_codon_map():
   f=open("data/dna_codon.csv","r")
@@ -46,6 +48,37 @@ def load_domains():
   load_domain_file("non_nextclade_domains.csv")
   load_domain_file("non_nextclade_domains_aligned.csv")
   domains['ORF1ab']=(domains['ORF1a'][0],domains['ORF1b'][1])
+
+def load_trs_s():
+  # Coronavirus TRSs as given by Figure 2a in Yang et al
+  # https://doi.org/10.1093/molbev/msaa281
+
+  # Alpha coronaviruses
+  trs_s["decacovirus"]="AACTAAAC"
+  trs_s["duvinacovirus"]="AACTAAAC"
+  trs_s["luchacovirus"]="AACTAAAC"
+  trs_s["minacovirus"]="AACTAAAC"
+  trs_s["muninacovirus"]="AACTAAAC"
+  trs_s["myotacovirus"]="AACTAAAC"
+  trs_s["nychacovirus"]="AACTAAAC"
+  trs_s["pedacovirus"]="AACTAAAC"
+  trs_s["rhinacovirus"]="AACTAAAC"
+  trs_s["setracovirus"]="AACTAAAC"
+  trs_s["tegacovirus"]="AACTAAAC"
+  # Beta coronaviruses
+  trs_s["embecovirus"]="ATCTAAAC"
+  trs_s["hibecovirus"]="AACGAAC"
+  trs_s["merbecovirus"]="AACGAAC"
+  trs_s["nobecovirus"]="AACGAAC"
+  trs_s["sarbecovirus"]="AACGAAC"
+  # Gamma coronaviruses
+  trs_s["cegacovirus"]="ATTAAAC"
+  trs_s["igacovirus"]="CTTAACA"
+  # Delta coronaviruses
+  trs_s["andocovirus"]="GACACCA"
+  trs_s["buldocovirus"]="GACACCA"
+  trs_s["herdecovirus"]="GACACCGA"
+  trs_s["moordecovirus"]="GACACCA"
 
 def get_mutations_path(lineage):
   path0=re.sub(r"([A-Z])",r"/\1",lineage)
@@ -163,13 +196,33 @@ def scan_for_start(rna,domain):
   rna_length=len(rna)
   found_start_codon=False
   start_codons="ATG"
-  while (not found_start_codon):
-     if (((start<end) or (end<0)) and ((start+3)<rna_length)):
+  while ((not found_start_codon) and ((start+3)<rna_length)):
+     if ((start<end) or (end<0)):
         codon=rna[start:start+3]
         found_start_codon=codon in start_codons
         if (not found_start_codon):
            start=start+1
-  return (start+1,domain[1])
+  if (found_start_codon):
+     return (start+1,domain[1])
+  else:
+     return (rna_length,domain[1])
+
+def scan_for_trs(rna,domain,trs):
+  start=domain[0]-1
+  end=domain[1]-1
+  rna_length=len(rna)
+  trs_length=len(trs)
+  found_trs=False
+  while ((not found_trs) and ((start+trs_length)<rna_length)):
+     if ((start<end) or (end<0)):
+        candidate=rna[start:start+trs_length]
+        found_trs=(candidate==trs)
+        if (not found_trs):
+           start=start+1
+  if (found_trs):
+     return (start+1,domain[1])
+  else:
+     return (rna_length,domain[1])
 
 def help_text():
    usage="""
@@ -208,6 +261,7 @@ This program is not licensed for intentional offensive biowarfare purposes.
 load_reference_strain_rna()
 load_codon_map()
 load_domains()
+load_trs_s()
 
 help_text=help_text()
 
@@ -220,6 +274,7 @@ parser.add_argument('-s','--start',type=int,help="start nucleotide position")
 parser.add_argument('-e','--end',type=int,help="end nucleotide position")
 parser.add_argument('-a','--additional-muts',help="comma-separrated list of additional mutation(s) beyond the lineage")
 parser.add_argument('--scan',action='store_true',help="scan for first start codon at or after start position")
+parser.add_argument('--trsscan',help="scan for a TRS for the given genus or sequence then scan for start codon")
 
 args=vars(parser.parse_args())
 
@@ -229,6 +284,7 @@ protein=args['protein']
 start=args['start']
 end=args['end']
 scan=args['scan']
+trsscan=args['trsscan']
 additional_muts=args['additional_muts']
 if (additional_muts):
   additional_mutations=additional_muts.split(",")
@@ -254,11 +310,25 @@ if (domain):
    elif (fasta):
       rna=load_fasta_file(fasta)
 
-if (scan):
+trs=None
+if (trsscan):
+   if (nucleotide_pattern.match(trsscan)):
+      trs=trsscan
+   elif (trsscan in set(trs_s.keys())):
+      trs=trs_s[trsscan]
+   else:
+      print(f"TRS {trsscan} unknown")
+      trs="Don't match"
+
+if (trs):
+   domain=scan_for_trs(rna,domain,trs)
+
+if (scan or trsscan):
    domain=scan_for_start(rna,domain)
 
 if (rna):
-   print(output_protein(rna,domain))
+   if (domain[0]<len(rna)):
+      print(output_protein(rna,domain))
 else:
    print(help_text)
 
