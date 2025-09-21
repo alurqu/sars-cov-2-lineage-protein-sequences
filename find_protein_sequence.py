@@ -253,7 +253,7 @@ following formats:
 Use this program at your own risk as it has no warranty or guarantee
 of correctness.
 
-This program is not licensed for intentional offensive biowarfare purposes.
+This program is not licensed for use supporting offensive biowarfare purposes.
    """
    help_text="%s\n%s"%(help_text,warranty)
    return help_text
