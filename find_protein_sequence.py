@@ -1,7 +1,7 @@
+import argparse
+import pathlib
 import re
 import sys
-
-from argparse import ArgumentParser
 
 reference_rna=""
 codonmap={}
@@ -157,6 +157,20 @@ def output_protein(rna, positions):
     rna_snippet=rna[output_start:]
   return convert_to_protein(rna_snippet,defined_end)
 
+def scan_for_start(rna,domain):
+  start=domain[0]-1
+  end=domain[1]-1
+  rna_length=len(rna)
+  found_start_codon=False
+  start_codons="ATG"
+  while (not found_start_codon):
+     if (((start<end) or (end<0)) and ((start+3)<rna_length)):
+        codon=rna[start:start+3]
+        found_start_codon=codon in start_codons
+        if (not found_start_codon):
+           start=start+1
+  return (start+1,domain[1])
+
 def help_text():
    usage="""
 Use find_protein_sequences.py --help for command line options
@@ -197,14 +211,15 @@ load_domains()
 
 help_text=help_text()
 
-parser=ArgumentParser(description=help_text)
+parser=argparse.ArgumentParser(description=help_text,formatter_class=argparse.RawDescriptionHelpFormatter)
 source_group=parser.add_mutually_exclusive_group()
-source_group.add_argument('-f','--fasta')
-source_group.add_argument('-l','--lineage')
-parser.add_argument('-p','--protein')
-parser.add_argument('-s','--start')
-parser.add_argument('-e','--end')
-parser.add_argument('-a','--additional-muts')
+source_group.add_argument('-f','--fasta',type=pathlib.Path,help="path to a FASTA file to convert")
+source_group.add_argument('-l','--lineage',help="the SARS-CoV-2 lineage")
+parser.add_argument('-p','--protein',help="the protein to output")
+parser.add_argument('-s','--start',type=int,help="start nucleotide position")
+parser.add_argument('-e','--end',type=int,help="end nucleotide position")
+parser.add_argument('-a','--additional-muts',help="comma-separrated list of additional mutation(s) beyond the lineage")
+parser.add_argument('--scan',action='store_true',help="scan for first start codon at or after start position")
 
 args=vars(parser.parse_args())
 
@@ -213,6 +228,7 @@ lineage=args['lineage']
 protein=args['protein']
 start=args['start']
 end=args['end']
+scan=args['scan']
 additional_muts=args['additional_muts']
 if (additional_muts):
   additional_mutations=additional_muts.split(",")
@@ -237,6 +253,9 @@ if (domain):
       (rna,domain)=load_lineage_nuc_mutations(lineage,domain,protein,additional_mutations)
    elif (fasta):
       rna=load_fasta_file(fasta)
+
+if (scan):
+   domain=scan_for_start(rna,domain)
 
 if (rna):
    print(output_protein(rna,domain))
