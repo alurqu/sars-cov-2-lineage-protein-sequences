@@ -1,6 +1,8 @@
 import re
 import sys
 
+from argparse import ArgumentParser
+
 reference_rna=""
 codonmap={}
 domains={}
@@ -63,7 +65,7 @@ def convert_to_protein(rna,defined_end):
        if (next_residue=='*') and (not defined_end):
           stop=True
     else:
-       print(f"Encountered unexpected codon {codon}. Ending translation early.")
+       result="%s?"%result
     p=p+3
   return result
 
@@ -72,8 +74,8 @@ def load_lineage_nuc_mutations(lineage,positions,frame,additional_muts):
   f=open(mutations_path,"r")
   indels={}
   lineage_rna=reference_rna
-  output_start=positions[0]-1
-  output_end=positions[1]-1
+  output_start=positions[0]
+  output_end=positions[1]
   if (frame=='NSP12') or (frame=='ORF1ab'):
     # For frames that span the ribosome slip from ORF1a to ORF1b,
     # add a deletion for the slip effect
@@ -123,64 +125,121 @@ def load_lineage_nuc_mutations(lineage,positions,frame,additional_muts):
        output_end=output_end+delta
      if (p<output_start):
        output_start=output_start+delta
+  
+  output_domain=(output_start,output_end)  
+  return (lineage_rna,output_domain)
 
+def load_fasta(file_obj):
+  rna=""
+  dataline=file_obj.readline()
+  while ((dataline) and (dataline.startswith(">"))):
+     # Skip metadata/comment lines
+     dataline=file_obj.readline()
+  while ((dataline) and (not dataline.startswith(">"))):
+     rna="%s%s"%(rna,dataline.strip())
+     dataline=file_obj.readline()
+  return rna
+
+def load_fasta_file(file_name):
+  f=open(file_name,"r")
+  rna=load_fasta(f)
+  f.close()
+  return rna
+
+def output_protein(rna, positions):
+
+  output_start=positions[0]-1
+  output_end=positions[1]-1
   defined_end=(output_end>0)
   if defined_end:
-    rna_snippet=lineage_rna[output_start:output_end+1]
+    rna_snippet=rna[output_start:output_end+1]
   else:
-    rna_snippet=lineage_rna[output_start:]
+    rna_snippet=rna[output_start:]
   return convert_to_protein(rna_snippet,defined_end)
 
-def print_usage():
+def help_text():
    usage="""
-Usage:
+Use find_protein_sequences.py --help for command line options
 
-   python3 find_protein_sequence.py [protein] [lineage]
-   
 Available protein specifications are:
-   """
+"""
    proteins=list(domains.keys())
    proteins.sort()
-   print(usage)
+   help_text=usage
    for p in proteins:
-      print(f"   {p}")
+      help_text="%s   %s\n"%(help_text,p)
    after_proteins="""
 Or in place of the protein name specify a nucleotide range such as 21563-21572
 or just a starting nucleotide such as 27894. If only a start nucleotide is
 specified, translation will run until the first stop codon is encountered.
+
+For additional mutations, provide a comma-separated list of mutations in the
+following formats:
+   Nuc:[position][new nucleotide] for nucleotide changes
+   Ins:[position]:[nucleotides] for insertions
+   Del:[start position]-[end position]
+
+   e.g. --additional-muts Nuc:24990T,Ins:21608:TCATGCCGCTGT,Del:21992-21994
 """
-   print(after_proteins)
+   help_text="%s\n%s"%(help_text,after_proteins)
    warranty="""
-Use this program at your own risk as it has no warranty or guarantee of correctness.
+Use this program at your own risk as it has no warranty or guarantee
+of correctness.
+
+This program is not licensed for intentional offensive biowarfare purposes.
    """
-   print(warranty)
+   help_text="%s\n%s"%(help_text,warranty)
+   return help_text
 
 load_reference_strain_rna()
 load_codon_map()
 load_domains()
 
-n_args=len(sys.argv)
-if n_args>2:
-   additional_muts=[]
-   if n_args>3:
-      additional_muts=sys.argv[3:]
-   protein=sys.argv[1]
-   range_match=range_pattern.match(protein)
-   domain=None
+help_text=help_text()
+
+parser=ArgumentParser(description=help_text)
+source_group=parser.add_mutually_exclusive_group()
+source_group.add_argument('-f','--fasta')
+source_group.add_argument('-l','--lineage')
+parser.add_argument('-p','--protein')
+parser.add_argument('-s','--start')
+parser.add_argument('-e','--end')
+parser.add_argument('-a','--additional-muts')
+
+args=vars(parser.parse_args())
+
+fasta=args['fasta']
+lineage=args['lineage']
+protein=args['protein']
+start=args['start']
+end=args['end']
+additional_muts=args['additional_muts']
+if (additional_muts):
+  additional_mutations=additional_muts.split(",")
+else:
+  additional_mutations=[]
+
+domain=None
+if (protein):
    if protein in domains:
       domain=domains[protein]
-   elif (range_match):
-      if (range_match.group(2)):
-         domain=(int(range_match.group(1)),int(range_match.group(2)))
-      else:
-         domain=(int(range_match.group(1)),-1) 
-   if (domain):
-      result=load_lineage_nuc_mutations(sys.argv[2],domain,sys.argv[1],additional_muts)
-      print(result)
    else:
-      print(f"Protein {protein} not recognized")
-      print("")
-      print_usage()
+      print(f"Protein {protein} not recognized.\n\n")
+elif (start):
+   if (end):
+      domain=(int(start),int(end))
+   else:
+      domain=(int(start),-1)
+
+rna=None
+if (domain):
+   if (lineage):
+      (rna,domain)=load_lineage_nuc_mutations(lineage,domain,protein,additional_mutations)
+   elif (fasta):
+      rna=load_fasta_file(fasta)
+
+if (rna):
+   print(output_protein(rna,domain))
 else:
-   print_usage()
+   print(help_text)
 
